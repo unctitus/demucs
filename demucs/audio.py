@@ -263,3 +263,70 @@ def save_audio(wav: torch.Tensor,
         ta.save(str(path), wav, sample_rate=samplerate, bits_per_sample=bits_per_sample)
     else:
         raise ValueError(f"Invalid suffix for path: {suffix}")
+
+import subprocess
+import tempfile
+import os
+from pathlib import Path
+import typing as tp
+import torch
+# Assuming ta and prevent_clip are defined elsewhere, e.g., from torchaudio or custom modules
+
+def save_audio2(wav: torch.Tensor,
+               path: tp.Union[str, Path],
+               samplerate: int,
+               bitrate: int = 320,
+               clip: tp.Literal["rescale", "clamp", "tanh", "none"] = 'rescale',
+               bits_per_sample: tp.Literal[16, 24, 32] = 16,
+               as_float: bool = False,
+               preset: tp.Literal[2, 3, 4, 5, 6, 7] = 2):
+    """Save audio file, automatically preventing clipping if necessary
+    based on the given `clip` strategy. If the path ends in `.mp3`, this
+    will save as mp3 with the given `bitrate` (using `preset` for quality).
+    For files ending in `.webm`, the audio is first saved as a temporary WAV
+    file and then converted via FFmpeg into a WebM container using the Opus codec.
+    Files ending in `.flac` are saved as FLAC.
+    """
+    wav = prevent_clip(wav, mode=clip)
+    path = Path(path)
+    suffix = path.suffix.lower()
+    
+    if suffix == ".mp3":
+        encode_mp3(wav, path, samplerate, bitrate, preset, verbose=True)
+        
+    elif suffix == ".webm":
+        # Save a temporary WAV file using similar logic as the WAV branch.
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav_file:
+            temp_wav_path = temp_wav_file.name
+        if as_float:
+            bits_per_sample = 32
+            encoding = 'PCM_F'
+        else:
+            encoding = 'PCM_S'
+        ta.save(str(temp_wav_path), wav, sample_rate=samplerate,
+                encoding=encoding, bits_per_sample=bits_per_sample)
+        # Convert the temporary WAV file to a WebM file using FFmpeg and the Opus codec.
+        ffmpeg_cmd = [
+            "ffmpeg", "-y", "-i", temp_wav_path,
+            "-strict", "-2",
+            "-ar", "48000",     
+            "-c:a", "opus",
+            "-b:a", f"{bitrate}k",
+            str(path)
+        ]
+        subprocess.run(ffmpeg_cmd, check=True)
+        os.remove(temp_wav_path)
+        
+    elif suffix == ".wav":
+        if as_float:
+            bits_per_sample = 32
+            encoding = 'PCM_F'
+        else:
+            encoding = 'PCM_S'
+        ta.save(str(path), wav, sample_rate=samplerate,
+                encoding=encoding, bits_per_sample=bits_per_sample)
+        
+    elif suffix == ".flac":
+        ta.save(str(path), wav, sample_rate=samplerate, bits_per_sample=bits_per_sample)
+    else:
+        raise ValueError(f"Invalid suffix for path: {suffix}")

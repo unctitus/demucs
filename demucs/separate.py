@@ -175,6 +175,7 @@ def main(opts=None):
             "as_float": args.float32,
             "bits_per_sample": 24 if args.int24 else 16,
         }
+        # No stem specified
         if args.stem is None:
             for name, source in res.items():
                 stem = out / args.filename.format(
@@ -186,23 +187,27 @@ def main(opts=None):
                 stem.parent.mkdir(parents=True, exist_ok=True)
                 save_audio(source, str(stem), **kwargs)
         else:
-            stem = out / args.filename.format(
-                track=track.name.rsplit(".", 1)[0],
-                trackext=track.name.rsplit(".", 1)[-1],
-                stem="minus_" + args.stem,
-                ext=ext,
-            )
+            
             if args.other_method == "minus":
+                stem = out / args.filename.format(
+                    track=track.name.rsplit(".", 1)[0],
+                    trackext=track.name.rsplit(".", 1)[-1],
+                    stem="minus_" + args.stem,
+                    ext=ext,
+                )
                 stem.parent.mkdir(parents=True, exist_ok=True)
                 save_audio(origin - res[args.stem], str(stem), **kwargs)
+            
             stem = out / args.filename.format(
-                track=track.name.rsplit(".", 1)[0],
-                trackext=track.name.rsplit(".", 1)[-1],
-                stem=args.stem,
-                ext=ext,
+                    track=track.name.rsplit(".", 1)[0],
+                    trackext=track.name.rsplit(".", 1)[-1],
+                    stem=args.stem,
+                    ext=ext,
             )
             stem.parent.mkdir(parents=True, exist_ok=True)
-            save_audio(res.pop(args.stem), str(stem), **kwargs)
+            # Comment this out to only save the selected stem
+            #save_audio(res.pop(args.stem), str(stem), **kwargs)
+            res.pop(args.stem)
             # Warning : after poping the stem, selected stem is no longer in the dict 'res'
             if args.other_method == "add":
                 other_stem = th.zeros_like(next(iter(res.values())))
@@ -215,8 +220,37 @@ def main(opts=None):
                     ext=ext,
                 )
                 stem.parent.mkdir(parents=True, exist_ok=True)
-                save_audio(other_stem, str(stem), **kwargs)
+                #save_audio(other_stem, str(stem), **kwargs)
+                import subprocess
+                import tempfile
+                from pathlib import Path
+        
+                # First, save the raw 'other_stem' to a temporary file (e.g., in WAV format)
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav_file:
+                    temp_raw_path = Path(temp_wav_file.name)
+                save_audio(other_stem, str(temp_raw_path), **kwargs)
 
+                # Now, use FFmpeg to normalize the loudness of the saved file.
+                # This example uses the EBU R128 loudnorm filter with typical targets:
+                #   Integrated loudness: -23 LUFS,
+                #   Loudness range: 7 LU,
+                #   True peak: -2 dB.
+                #
+                # You can adjust these parameters if needed.
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-y",  # Overwrite output file if needed
+                    "-i", str(temp_raw_path),
+                    "-af", "loudnorm=I=-23:LRA=7:tp=-2",
+                    str(stem)
+                ]
+                try:
+                    subprocess.run(ffmpeg_cmd, check=True)
+                except subprocess.CalledProcessError as e:
+                    print("FFmpeg normalization failed:", e)
+                finally:
+                    # Clean up the temporary file
+                    temp_raw_path.unlink()
 
 if __name__ == "__main__":
     main()

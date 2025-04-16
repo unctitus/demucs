@@ -1,0 +1,37 @@
+[project]
+name = "demucs"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "datasets>=3.5.0",
+    "diffq>=0.2.1",
+    "dora-search>=0.1.12",
+    "einops>=0.8.1",
+    "flake8>=7.2.0",
+    "hydra-colorlog>=1.1",
+    "hydra-core>=1.1",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.6",
+    "julius>=0.2.3",
+    "lameenc>=1.2",
+    "museval>=0.4.1",
+    "mypy>=1.15.0",
+    "numpy<2",
+    "openunmix>=1.3.0",
+    "pyyaml>=6.0.2",
+    "soundfile>=0.10.3 ; sys_platform == 'win32'",
+    "submitit>=1.5.2",
+    "torch>=1.8.1",
+    "torchaudio>=0.8,<2.1",
+    "tqdm>=4.67.1",
+    "transformers>=4.51.3",
+    "treetable>=0.2.5",
+]
+
+[dependency-groups]
+dev = [
+    "demucs",
+]
+
+[tool.uv.sources]
+demucs = { workspace = true }
